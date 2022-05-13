@@ -28,6 +28,8 @@ def main(infile: TextIOWrapper,
          outfile: str,
          alpha: float,
          granularity: str):
+    # minute : T
+    # second : S
 
     f_output = open(TEMPORAL_CSV_PATH, 'w', encoding="utf-8")
     f_output.write("created_at,author_name,author_profile\n")
