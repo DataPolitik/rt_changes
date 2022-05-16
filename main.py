@@ -1,23 +1,14 @@
 import json
 import click
 import os
+import logging
+import random
 import pandas as pd
 from twarc import ensure_flattened
 from io import TextIOWrapper
 
-TEMPORAL_CSV_PATH = '.output.csv'
-
-
-def process_dataframe(df):
-    result_dictionary = dict()
-    value_counts_result = df.author_name.value_counts()
-    author_list = list(value_counts_result.index)
-
-    for author in author_list:
-        result_dictionary[author] = value_counts_result[author]
-
-    return result_dictionary
-
+logging.getLogger().setLevel(logging.INFO)
+TEMPORAL_CSV_PATH = 'output.csv'
 
 @click.command()
 @click.option('-a', '--alpha', type=click.FLOAT, required=False, default='0.005')
@@ -28,27 +19,27 @@ def main(infile: TextIOWrapper,
          outfile: str,
          alpha: float,
          granularity: str):
-    # minute : T
-    # second : S
 
-    f_output = open(TEMPORAL_CSV_PATH, 'w', encoding="utf-8")
+    temporal_file_name = '.' + str(random.randint(0, 400)) + '_' + TEMPORAL_CSV_PATH
+    f_output = open(temporal_file_name, 'w', encoding="utf-8")
     f_output.write("created_at,author_name,author_profile\n")
     profile_image_dictionary = dict()
-
+    logging.info('Generating temporal output file: ' + temporal_file_name)
     for line in infile:
         for tweet in ensure_flattened(json.loads(line)):
             if 'referenced_tweets' in tweet:
                 for x in tweet['referenced_tweets']:
                     if 'retweeted' in x['type']:
-                        author_name = x['author']['name']
+                        author_name = x['author']['username']
                         author_profile = x['author']['profile_image_url']
                         created_at = tweet['created_at']
                         profile_image_dictionary[author_name] = author_profile
                         f_output.write("{},{},{}\n".format(created_at, author_name, author_profile))
     f_output.close()
 
-    df = pd.read_csv(TEMPORAL_CSV_PATH)
-    os.remove(TEMPORAL_CSV_PATH)
+    logging.info('Temporal file generated.')
+
+    df = pd.read_csv(temporal_file_name)
     df = df.dropna()
     df['created_at'] = pd.to_datetime(df['created_at']).dt.to_period(granularity)
     unique_dates = list(df.created_at.unique())
@@ -59,23 +50,34 @@ def main(infile: TextIOWrapper,
         dictionary_periods[username] = []
 
     f_output = open(outfile, 'w', encoding="utf-8")
-    f_output.write("datetime,author_name,count,profile_image_url\n")
-    period = 0
-    for date_period in unique_dates:
-        df_filtered = df[df['created_at'] == date_period]
-        result_dictionary = process_dataframe(df_filtered)
-        ready_users = set()
-        for username, count in result_dictionary.items():
-            process_user(alpha, count, date_period, dictionary_periods,
-                         f_output, period, username, profile_image_dictionary)
-            ready_users.add(username)
-        pending_users = unique_usernames.difference(ready_users)
-        for pending_user in pending_users:
-            process_user(alpha, 0, date_period, dictionary_periods,
-                         f_output, period, pending_user, profile_image_dictionary)
-        period = period + 1
+    f_output.write("profile_image_url,author_name")
+    for unique_date in unique_dates:
+        unique_date_str: str = str(unique_date).split('/')[0]
+        f_output.write(',' + str(unique_date_str).replace(' ','_'))
+    f_output.write("\n")
 
+    logging.info('Computing user scores')
+    user_count: int = 1
+    total_users: int = len(unique_usernames)
+    for user in unique_usernames:
+        period: int = 0
+        f_output.write(profile_image_dictionary[user])
+        f_output.write(","+user)
+        for date_period in unique_dates:
+            df_filtered = df[df['author_name'] == user]
+            df_filtered = df_filtered[df_filtered['created_at'] == date_period]
+            number_of_rts = len(df_filtered.index)
+            score = process_user(alpha, number_of_rts, dictionary_periods, period, user)
+            f_output.write("," + str(score))
+            period = period + 1
+        f_output.write("\n")
+        user_count = user_count + 1
+        if user_count % 10 == 0:
+            logging.info('{}/{}'.format(user_count, total_users))
     f_output.close()
+    logging.info('User scores computed. Matrix file generated:' + outfile)
+    os.remove(temporal_file_name)
+    logging.info('Finished.')
 
 
 def compute_score(username, period, alpha, dictionary):
@@ -84,11 +86,10 @@ def compute_score(username, period, alpha, dictionary):
     return dictionary[username][period] + alpha * compute_score(username, period - 1, alpha, dictionary)
 
 
-def process_user(alpha, count, date_period, dictionary_periods, f_output, period, username, profile_image_dict):
+def process_user(alpha, count, dictionary_periods, period, username):
     value_period = count + alpha * compute_score(username, period - 1, alpha, dictionary_periods)
     dictionary_periods[username].append(value_period)
-    profile_image = profile_image_dict[username]
-    f_output.write("{},{},{},{}\n".format(date_period, username, value_period, profile_image))
+    return value_period
 
 
 if __name__ == '__main__':
