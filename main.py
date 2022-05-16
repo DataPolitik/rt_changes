@@ -15,6 +15,7 @@ TEMPORAL_CSV_PATH = 'output.csv'
 def generate_random_file_name():
     return '.' + str(random.randint(0, 20000)) + '_' + TEMPORAL_CSV_PATH
 
+
 def set_score_value(username, score, dictionary):
     dictionary[username] = score
 
@@ -24,7 +25,7 @@ def get_score_value(username, dictionary):
 
 
 def compute_score(username, count, alpha, dictionary):
-    score = count + alpha * get_score_value(username, dictionary)
+    score = count + alpha * get_score_value(username, dictionary) if alpha > 0 else count
     set_score_value(username, score, dictionary)
     return score
 
@@ -78,7 +79,7 @@ def main(infile: TextIOWrapper,
     f_temp_output.write("profile_image_url,author_name")
     for unique_date in unique_dates:
         unique_date_str: str = str(unique_date).split('/')[0]
-        f_temp_output.write(',' + str(unique_date_str).replace(' ','_'))
+        f_temp_output.write(',' + str(unique_date_str).replace(' ', '_'))
     f_temp_output.write("\n")
 
     logging.info('Computing user scores')
@@ -88,28 +89,26 @@ def main(infile: TextIOWrapper,
         period: int = 0
         f_temp_output.write(profile_image_dictionary[user])
         f_temp_output.write(","+user)
+        df_filtered_user = df[df['author_name'] == user]
         for date_period in unique_dates:
-            df_filtered = df[df['author_name'] == user]
-            df_filtered = df_filtered[df_filtered['created_at'] == date_period]
+            df_filtered = df_filtered_user[df_filtered_user['created_at'] == date_period]
             number_of_rts = len(df_filtered.index)
             score = compute_score(user, number_of_rts, alpha, dictionary_periods)
             f_temp_output.write("," + str(score))
             period = period + 1
         f_temp_output.write("\n")
+        logging.info('{}/{}'.format(user_count, total_users))
         user_count = user_count + 1
-        if user_count % 10 == 0:
-            logging.info('{}/{}'.format(user_count, total_users))
     f_temp_output.close()
-
 
     logging.info('User scores computed. Matrix file generated:' + outfile)
     logging.info('Filtering users...')
 
     f_temp_input = open(second_temporal_csv, 'r', encoding="utf-8")
     f_output = open(outfile, 'w', encoding='utf-8')
-    csvFile = csv.reader(f_temp_input)
+    csv_file = csv.reader(f_temp_input)
     number_of_line = 0
-    for line in csvFile:
+    for line in csv_file:
         if number_of_line > 0:
             sum_score = sum([float(x) for x in line[3:]])
             if sum_score > threshold:
