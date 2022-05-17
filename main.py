@@ -34,13 +34,15 @@ def compute_score(username, count, alpha, dictionary):
 @click.option('-a', '--alpha', type=click.FLOAT, required=False, default='0.005')
 @click.option('-g', '--granularity', required=False, default='M', type=click.STRING)
 @click.option('-t', '--threshold', required=False, default='2.0', type=click.FLOAT)
+@click.option('-i', '--interval', required=False, type=click.STRING)
 @click.argument('infile', type=click.File('r'), default='-')
 @click.argument('outfile', type=click.STRING, default='-')
 def main(infile: TextIOWrapper,
          outfile: str,
          alpha: float,
          threshold: float,
-         granularity: str):
+         granularity: str,
+         interval: str):
 
     first_temporal_csv = generate_random_file_name()
 
@@ -49,6 +51,16 @@ def main(infile: TextIOWrapper,
 
     profile_image_dictionary = dict()
     logging.info('Generating temporal output file: ' + first_temporal_csv)
+    is_interval = False
+    start_time = None
+    end_time = None
+
+    if interval is not None:
+        is_interval = True
+        splitted_time = interval.split(',')
+        start_time = pd.to_datetime(splitted_time[0], utc=True)
+        end_time = pd.to_datetime(splitted_time[1], utc=True)
+
     for line in infile:
         for tweet in ensure_flattened(json.loads(line)):
             if 'referenced_tweets' in tweet:
@@ -58,11 +70,21 @@ def main(infile: TextIOWrapper,
                         author_profile = x['author']['profile_image_url']
                         created_at = tweet['created_at']
                         profile_image_dictionary[author_name] = author_profile
-                        f_temp_output.write("{},{},{}\n".format(created_at, author_name, author_profile))
+                        is_allowed = True
+                        if is_interval:
+                            created_at_time = pd.to_datetime(created_at, utc=True)
+                            if not start_time <= created_at_time <= end_time:
+                                is_allowed = False
+                        if is_allowed:
+                            f_temp_output.write("{},{},{}\n".format(created_at, author_name, author_profile))
     f_temp_output.close()
 
     logging.info('Temporal file generated.')
     df = pd.read_csv(first_temporal_csv)
+    os.remove(first_temporal_csv)
+    if len(df.index) == 0:
+        logging.info("No users to process")
+        return
     df = df.dropna()
     df['created_at'] = pd.to_datetime(df['created_at']).dt.to_period(granularity)
     unique_dates = list(df.created_at.unique())
@@ -73,7 +95,7 @@ def main(infile: TextIOWrapper,
     for username in unique_usernames:
         dictionary_periods[username] = 0
 
-    os.remove(first_temporal_csv)
+
     second_temporal_csv = generate_random_file_name()
     f_temp_output = open(second_temporal_csv, 'w', encoding="utf-8")
     f_temp_output.write("profile_image_url,author_name")
@@ -86,7 +108,6 @@ def main(infile: TextIOWrapper,
     user_count: int = 1
     total_users: int = len(unique_usernames)
     for user in unique_usernames:
-        period: int = 0
         f_temp_output.write(profile_image_dictionary[user])
         f_temp_output.write(","+user)
         df_filtered_user = df[df['author_name'] == user]
@@ -95,7 +116,6 @@ def main(infile: TextIOWrapper,
             number_of_rts = len(df_filtered.index)
             score = compute_score(user, number_of_rts, alpha, dictionary_periods)
             f_temp_output.write("," + str(score))
-            period = period + 1
         f_temp_output.write("\n")
         logging.info('{}/{}'.format(user_count, total_users))
         user_count = user_count + 1
@@ -110,8 +130,8 @@ def main(infile: TextIOWrapper,
     number_of_line = 0
     for line in csv_file:
         if number_of_line > 0:
-            sum_score = sum([float(x) for x in line[3:]])
-            if sum_score > threshold:
+            sum_score = sum([float(x) for x in line[2:]])
+            if sum_score >= threshold:
                 line_to_write = ','.join(line)
                 f_output.write(line_to_write+"\n")
         else:
