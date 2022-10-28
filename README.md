@@ -25,7 +25,7 @@ And then, move to the folder **rt_changes**. Then, install all modules required 
 * **-t** | **- -threshold**: Removes users whose sum of scores are below the specific threshold.
 * **-i** | **- -interval**: Specify a date period to process.
  
-## Interval
+## Interval parameter
 
 The paramenter -i waits for two dates separated by a comma (eg: start_time,end_time) the format should be according
 YYYY-MM-DD-HH:MM:SS.
