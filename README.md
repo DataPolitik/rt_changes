@@ -1,6 +1,6 @@
 # RT_changes
 
-Computes a ranking of authors who receive tweets on specific time intervals.
+Computes a ranking of authors who receive retweets on specific time intervals.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ And then, move to the folder **rt_changes**. Then, install all modules required 
 The paramenter -i waits for two dates separated by a comma (eg: start_time,end_time) the format should be according
 YYYY-MM-DD-HH:MM:SS.
 
-## Time series
+## Granularity
 
 Some allowed values are:
 
