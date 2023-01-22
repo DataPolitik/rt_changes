@@ -59,3 +59,7 @@ A complete description of allowed aliases can be found at: https://pandas.pydata
 ### Compute data from an specific date interval
 
 `changes.py  examples/results.json output -i 2021-10-18,2022-10-18`
+
+## Example of use
+
+[Crowdosourced elite during the first wave of Covid19 in Spain](https://datapolitik.medium.com/el-baile-de-las-%C3%A9lites-en-twitter-9a288fb32eb3)
