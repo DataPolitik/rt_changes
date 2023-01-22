@@ -20,8 +20,8 @@ And then, move to the folder **rt_changes**. Then, install all modules required 
 
 `changes.py <INFILE> <OUTFILE> [-f [FIELDS] ]`
 
-* **-a** | **- -alpha**: An alpha value (default = 0.005).
 * **-g** | **- -granularity**: The time interval. You can use any offset alias for Pandas time series.
+* **-a** | **- -alpha**: An inertia parameter that weighs retweets received in the previous time intervals (default = 0.005).
 * **-t** | **- -threshold**: Removes users whose sum of scores are below the specific threshold.
 * **-i** | **- -interval**: Specify a date period to process.
  
